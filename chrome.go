@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os/exec"
 	"regexp"
 	"sync"
@@ -45,9 +44,10 @@ type chrome struct {
 	window   int
 	pending  map[int]chan result
 	bindings map[string]bindingFunc
+	log      Logger
 }
 
-func newChromeWithArgs(chromeBinary string, args ...string) (*chrome, error) {
+func newChromeWithArgs(chromeBinary string, log Logger, args ...string) (*chrome, error) {
 	// The first two IDs are used internally during the initialization
 	c := &chrome{
 		id:       2,
@@ -118,6 +118,11 @@ func newChromeWithArgs(chromeBinary string, args ...string) (*chrome, error) {
 		}
 		c.window = win.WindowID
 	}
+
+	if log == nil {
+		log = loggerFunc(func(args ...interface{}) {})
+	}
+	c.log = log
 
 	return c, nil
 }
@@ -270,7 +275,7 @@ func (c *chrome) readLoop() {
 			json.Unmarshal([]byte(params.Message), &res)
 
 			if res.ID == 0 && res.Method == "Runtime.consoleAPICalled" || res.Method == "Runtime.exceptionThrown" {
-				log.Println(params.Message)
+				c.log.Debug(params.Message)
 			} else if res.ID == 0 && res.Method == "Runtime.bindingCalled" {
 				payload := struct {
 					Name string            `json:"name"`
